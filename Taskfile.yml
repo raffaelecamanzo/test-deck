@@ -1,0 +1,154 @@
+version: "3"
+
+vars:
+  DECK: slides/deck.md
+  THEME: themes/deck_theme.css
+  OUTDIR: output
+  # Pin this to your chosen version tag
+  MARP_IMAGE: marpteam/marp-cli:v4.2.2
+  PREVIEW_PORT: 8080
+
+tasks:
+  init:
+    desc: "Create output folder"
+    cmds:
+      - mkdir -p "{{.OUTDIR}}"
+
+  pdf:
+    desc: "Export versioned PDF to output/"
+    deps: [init]
+    cmds:
+      - |
+        python3 - <<'PY'
+        import os, re, subprocess
+        from pathlib import Path
+
+        deck = os.environ["DECK"]
+        theme = os.environ["THEME"]
+        outdir = Path(os.environ["OUTDIR"])
+        image = os.environ["MARP_IMAGE"]
+
+        text = Path(deck).read_text(encoding="utf-8")
+
+        def yaml_get(key: str) -> str:
+          m = re.search(rf"(?m)^{re.escape(key)}:\s*(.+)\s*$", text)
+          return m.group(1).strip().strip('"').strip("'") if m else ""
+
+        title = yaml_get("title") or "deck"
+        date = yaml_get("date") or "undated"
+
+        def slugify(s: str) -> str:
+          s = s.strip()
+          s = re.sub(r"[^\w\s-]", "", s, flags=re.UNICODE)
+          s = re.sub(r"[\s_-]+", "-", s)
+          return s.strip("-") or "deck"
+
+        # date is already normalized by scaffold to YYYY-MM-DD; keep a fallback anyway
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+          date = "undated"
+
+        outpath = outdir / f"{slugify(title)}_{date}.pdf"
+
+        cmd = [
+          "docker", "run", "--rm",
+          "-v", f"{os.getcwd()}:/home/marp/app",
+          "-w", "/home/marp/app",
+          image,
+          deck,
+          "--theme", theme,
+          "--pdf",
+          "--allow-local-files",
+          "-o", str(outpath),
+        ]
+
+        print(f"→ Writing: {outpath}")
+        subprocess.check_call(cmd)
+        PY
+    env:
+      DECK: "{{.DECK}}"
+      THEME: "{{.THEME}}"
+      OUTDIR: "{{.OUTDIR}}"
+      MARP_IMAGE: "{{.MARP_IMAGE}}"
+
+  pptx:
+    desc: "Export versioned PPTX to output/"
+    deps: [init]
+    cmds:
+      - |
+        python3 - <<'PY'
+        import os, re, subprocess
+        from pathlib import Path
+
+        deck = os.environ["DECK"]
+        theme = os.environ["THEME"]
+        outdir = Path(os.environ["OUTDIR"])
+        image = os.environ["MARP_IMAGE"]
+
+        text = Path(deck).read_text(encoding="utf-8")
+
+        def yaml_get(key: str) -> str:
+          m = re.search(rf"(?m)^{re.escape(key)}:\s*(.+)\s*$", text)
+          return m.group(1).strip().strip('"').strip("'") if m else ""
+
+        title = yaml_get("title") or "deck"
+        date = yaml_get("date") or "undated"
+
+        def slugify(s: str) -> str:
+          s = s.strip()
+          s = re.sub(r"[^\w\s-]", "", s, flags=re.UNICODE)
+          s = re.sub(r"[\s_-]+", "-", s)
+          return s.strip("-") or "deck"
+
+        # date is already normalized by scaffold to YYYY-MM-DD; keep a fallback anyway
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+          date = "undated"
+
+        outpath = outdir / f"{slugify(title)}_{date}.pptx"
+
+        cmd = [
+          "docker", "run", "--rm",
+          "-v", f"{os.getcwd()}:/home/marp/app",
+          "-w", "/home/marp/app",
+          image,
+          deck,
+          "--theme", theme,
+          "--pptx",
+          "--allow-local-files",
+          "-o", str(outpath),
+        ]
+
+        print(f"→ Writing: {outpath}")
+        subprocess.check_call(cmd)
+        PY
+    env:
+      DECK: "{{.DECK}}"
+      THEME: "{{.THEME}}"
+      OUTDIR: "{{.OUTDIR}}"
+      MARP_IMAGE: "{{.MARP_IMAGE}}"
+
+  preview:
+    desc: "Live preview at http://localhost:{{.PREVIEW_PORT}}"
+    cmds:
+      - |
+        docker run --rm -it \
+          -v "$PWD:/home/marp/app" \
+          -w /home/marp/app \
+          -p {{.PREVIEW_PORT}}:{{.PREVIEW_PORT}} \
+          {{.MARP_IMAGE}} \
+          {{.DECK}} \
+          --theme {{.THEME}} \
+          --server \
+          --watch \
+          --allow-local-files \
+          --html \
+          --port {{.PREVIEW_PORT}}
+
+  artifacts:
+    desc: "List generated artifacts"
+    cmds:
+      - ls -lah "{{.OUTDIR}}" || true
+
+  clean:
+    desc: "Remove generated artifacts"
+    cmds:
+      - rm -rf "{{.OUTDIR}}"
