@@ -165,12 +165,13 @@ tasks:
         msg: "Docker daemon not running. Start Docker Desktop and retry."
     cmds:
       - |
+        deck_dir="$(dirname "{{.DECK}}")"
         docker run --rm -it \
           -v "$PWD:/home/marp/app" \
           -w /home/marp/app \
           -p {{.PREVIEW_PORT}}:{{.PREVIEW_PORT}} \
           {{.MARP_IMAGE}} \
-          {{.DECK}} \
+          "$deck_dir" \
           --theme {{.THEME}} \
           --server \
           --watch \
