@@ -17,6 +17,9 @@ tasks:
   pdf:
     desc: "Export versioned PDF to output/"
     deps: [init]
+    preconditions:
+      - sh: docker info >/dev/null 2>&1
+        msg: "Docker daemon not running. Start Docker Desktop and retry."
     cmds:
       - |
         python3 - <<'PY'
@@ -31,11 +34,16 @@ tasks:
         text = Path(deck).read_text(encoding="utf-8")
 
         def yaml_get(key: str) -> str:
-          m = re.search(rf"(?m)^{re.escape(key)}:\s*(.+)\s*$", text)
+          m = re.search(rf"(?m)^\s*{re.escape(key)}\s*:\s*(.+)\s*$", text)
           return m.group(1).strip().strip('"').strip("'") if m else ""
 
         title = yaml_get("title") or "deck"
-        date = yaml_get("date") or "undated"
+        date = yaml_get("date")
+        if not date:
+          m = re.search(r'class="date"\s*>\s*(.+?)\s*<', text, flags=re.IGNORECASE)
+          if m:
+            date = m.group(1).strip()
+        date = date or "undated"
 
         def slugify(s: str) -> str:
           s = s.strip()
@@ -43,9 +51,17 @@ tasks:
           s = re.sub(r"[\s_-]+", "-", s)
           return s.strip("-") or "deck"
 
-        # date is already normalized by scaffold to YYYY-MM-DD; keep a fallback anyway
-        if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
-          date = "undated"
+        def normalize_date(s: str) -> str:
+          if not s:
+            return "undated"
+          s = s.strip()
+          if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
+            return s
+          if re.match(r"^\d{4}[/.]\d{2}[/.]\d{2}$", s):
+            return s.replace("/", "-").replace(".", "-")
+          return slugify(s)
+
+        date = normalize_date(date)
 
         outpath = outdir / f"{slugify(title)}_{date}.pdf"
 
@@ -73,6 +89,9 @@ tasks:
   pptx:
     desc: "Export versioned PPTX to output/"
     deps: [init]
+    preconditions:
+      - sh: docker info >/dev/null 2>&1
+        msg: "Docker daemon not running. Start Docker Desktop and retry."
     cmds:
       - |
         python3 - <<'PY'
@@ -87,11 +106,16 @@ tasks:
         text = Path(deck).read_text(encoding="utf-8")
 
         def yaml_get(key: str) -> str:
-          m = re.search(rf"(?m)^{re.escape(key)}:\s*(.+)\s*$", text)
+          m = re.search(rf"(?m)^\s*{re.escape(key)}\s*:\s*(.+)\s*$", text)
           return m.group(1).strip().strip('"').strip("'") if m else ""
 
         title = yaml_get("title") or "deck"
-        date = yaml_get("date") or "undated"
+        date = yaml_get("date")
+        if not date:
+          m = re.search(r'class="date"\s*>\s*(.+?)\s*<', text, flags=re.IGNORECASE)
+          if m:
+            date = m.group(1).strip()
+        date = date or "undated"
 
         def slugify(s: str) -> str:
           s = s.strip()
@@ -99,9 +123,17 @@ tasks:
           s = re.sub(r"[\s_-]+", "-", s)
           return s.strip("-") or "deck"
 
-        # date is already normalized by scaffold to YYYY-MM-DD; keep a fallback anyway
-        if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
-          date = "undated"
+        def normalize_date(s: str) -> str:
+          if not s:
+            return "undated"
+          s = s.strip()
+          if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
+            return s
+          if re.match(r"^\d{4}[/.]\d{2}[/.]\d{2}$", s):
+            return s.replace("/", "-").replace(".", "-")
+          return slugify(s)
+
+        date = normalize_date(date)
 
         outpath = outdir / f"{slugify(title)}_{date}.pptx"
 
@@ -128,6 +160,9 @@ tasks:
 
   preview:
     desc: "Live preview at http://localhost:{{.PREVIEW_PORT}}"
+    preconditions:
+      - sh: docker info >/dev/null 2>&1
+        msg: "Docker daemon not running. Start Docker Desktop and retry."
     cmds:
       - |
         docker run --rm -it \
